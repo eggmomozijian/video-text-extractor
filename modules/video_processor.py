@@ -1,9 +1,7 @@
-import cv2
 import os
 from PIL import Image
 import pytesseract
 from moviepy.editor import VideoFileClip
-import numpy as np
 
 class VideoProcessor:
     def __init__(self):
@@ -12,21 +10,18 @@ class VideoProcessor:
     
     def extract_text(self, video_path):
         """
-        Extract text from video using OCR and speech recognition
+        Extract text from video using OCR (simplified version)
         """
         try:
             # Extract text from video frames (OCR)
             ocr_text = self._extract_text_from_frames(video_path)
             
-            # Extract text from audio (Speech-to-Text)
-            audio_text = self._extract_text_from_audio(video_path)
-            
             # Combine results
             result = ""
             if ocr_text:
                 result += "=== 画面文字内容 ===\n" + ocr_text + "\n\n"
-            if audio_text:
-                result += "=== 语音文字内容 ===\n" + audio_text
+            
+            result += "💡 提示：语音转文字功能需要较大的AI模型，在免费服务器上暂时无法使用。如需此功能，建议在本地运行或升级服务器配置。"
             
             if not result:
                 result = "未检测到文字内容"
@@ -39,83 +34,46 @@ class VideoProcessor:
     
     def _extract_text_from_frames(self, video_path, sample_rate=30):
         """
-        Extract text from video frames using OCR
+        Extract text from video frames using OCR (without OpenCV)
         """
         try:
-            cap = cv2.VideoCapture(video_path)
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_interval = int(fps * sample_rate) if fps > 0 else 30
+            # Use moviepy to extract frames
+            video = VideoFileClip(video_path)
+            duration = video.duration
+            fps = video.fps
             
             extracted_texts = set()
-            frame_count = 0
             
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
+            # Sample frames every sample_rate seconds
+            for t in range(0, int(duration), sample_rate):
+                frame = video.get_frame(t)
                 
-                # Sample frames at intervals
-                if frame_count % frame_interval == 0:
-                    # Convert to grayscale
-                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    
-                    # Apply threshold to improve OCR accuracy
-                    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-                    
-                    # Convert to PIL Image
-                    pil_img = Image.fromarray(thresh)
-                    
-                    # Extract text with Chinese support
-                    text = pytesseract.image_to_string(pil_img, lang='chi_sim+eng')
-                    text = text.strip()
-                    
-                    if text:
-                        extracted_texts.add(text)
+                # Convert to PIL Image
+                pil_img = Image.fromarray(frame.astype('uint8'), 'RGB')
                 
-                frame_count += 1
+                # Convert to grayscale
+                gray_img = pil_img.convert('L')
+                
+                # Extract text with Chinese support
+                text = pytesseract.image_to_string(gray_img, lang='chi_sim+eng')
+                text = text.strip()
+                
+                if text:
+                    extracted_texts.add(text)
             
-            cap.release()
+            video.close()
             
             return "\n".join(extracted_texts) if extracted_texts else ""
         
         except Exception as e:
             print(f"OCR error: {e}")
-            return ""
+            return "OCR文字识别功能需要服务器安装Tesseract-OCR，当前环境暂不支持"
     
     def _extract_text_from_audio(self, video_path):
         """
-        Extract text from audio using Whisper (Speech-to-Text)
+        Extract text from audio - disabled in light version
         """
-        try:
-            # Note: Whisper requires significant resources
-            # For a lightweight version, you might want to use an API
-            # Here's a placeholder implementation
-            
-            import whisper
-            
-            # Extract audio first
-            import tempfile
-            temp_audio = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
-            audio_path = temp_audio.name
-            temp_audio.close()
-            
-            video = VideoFileClip(video_path)
-            video.audio.write_audiofile(audio_path, logger=None)
-            video.close()
-            
-            # Load Whisper model (use 'base' for faster processing)
-            model = whisper.load_model("base")
-            result = model.transcribe(audio_path, language='zh')
-            
-            # Cleanup
-            os.unlink(audio_path)
-            
-            return result['text']
-        
-        except Exception as e:
-            print(f"Speech-to-text error: {e}")
-            # Return a message instead of empty string
-            return "语音转文字功能需要安装 Whisper 模型（较大），暂时跳过"
+        return ""
     
     def extract_audio(self, video_path, file_id):
         """
