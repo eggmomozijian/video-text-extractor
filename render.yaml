@@ -1,0 +1,25 @@
+services:
+  # Backend service
+  - type: web
+    name: video-extractor-backend
+    env: python
+    buildCommand: "pip install -r requirements.txt && apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-chi-sim ffmpeg"
+    startCommand: "gunicorn app:app"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    disk:
+      name: uploads
+      mountPath: /opt/render/project/src/uploads
+      sizeGB: 10
+    
+  # Frontend service
+  - type: web
+    name: video-extractor-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://video-extractor-backend.onrender.com/api/*
